@@ -1,15 +1,13 @@
+use crate::errors::TowError;
+use futures_util::StreamExt;
 use log::warn;
+use reqwest::header;
 use std::cmp::min;
 use std::fs::File;
 use std::io::Write;
 use std::path::Path;
 use url::Url;
 
-use crate::errors::TowError;
-use futures_util::StreamExt;
-use reqwest::header;
-
-// TODO test that
 pub async fn download_file(url: &Url, path: &Path) -> Result<(), TowError> {
     if !path.is_dir() {
         return Err(TowError::new(&format!(
@@ -100,6 +98,7 @@ mod progress {
 #[cfg(test)]
 mod test {
     use super::*;
+    use mockito::mock;
 
     #[test]
     fn test_parsing_content_disposition() {
@@ -132,5 +131,36 @@ mod test {
                 .expect("error not expected here");
             assert_eq!(parsed, td.expected)
         }
+    }
+
+    #[test]
+    fn test_download_file() {
+        let filename = "hello.txt";
+        let endpoint = "/helloworld";
+        let root_url = &mockito::server_url();
+
+        let _m = mock("GET", endpoint)
+            .with_status(200)
+            .with_header("content-type", "text/plain")
+            .with_header(
+                "content-disposition",
+                &format!("attachment: filename={}", filename),
+            )
+            .with_body("Hello world!")
+            .create();
+
+        let url = Url::parse(&format!("{}{}", root_url, endpoint)).unwrap();
+
+        // this is gets deleted once it goes out of scope
+        let temp_dir = tempfile::tempdir().unwrap();
+        let temp_path = temp_dir.path();
+
+        // 1 - success
+        tokio_test::block_on(download_file(&url, &temp_path)).unwrap();
+        assert!(temp_path.join(filename).is_file());
+
+        // 2 - failure
+        let err = tokio_test::block_on(download_file(&url, &temp_path.join(filename))).unwrap_err();
+        assert!(err.to_string().contains("not a directory"));
     }
 }
