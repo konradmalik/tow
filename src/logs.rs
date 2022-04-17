@@ -1,4 +1,4 @@
-pub fn init() {
+pub fn init(verbosity: usize) {
     stderrlog::new()
         .quiet(false)
         .timestamp(stderrlog::Timestamp::Millisecond)
@@ -7,7 +7,7 @@ pub fn init() {
         // 2 => LevelFilter::Info,
         // 3 => LevelFilter::Debug,
         // _ => LevelFilter::Trace,
-        .verbosity(3)
+        .verbosity(verbosity)
         .init()
         .unwrap();
 }

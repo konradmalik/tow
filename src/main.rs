@@ -1,3 +1,4 @@
+mod app;
 mod cli;
 mod download;
 mod errors;
@@ -5,7 +6,8 @@ mod logs;
 
 #[tokio::main]
 async fn main() {
-    logs::init();
+    logs::init(3);
 
-    cli::run_cli().await
+    let app = app::App::new_from_env();
+    cli::run_cli(app).await
 }

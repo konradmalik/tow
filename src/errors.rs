@@ -35,6 +35,12 @@ impl From<io::Error> for TowError {
     }
 }
 
+impl From<url::ParseError> for TowError {
+    fn from(e: url::ParseError) -> Self {
+        TowError::new(&e.to_string())
+    }
+}
+
 impl From<reqwest::Error> for TowError {
     fn from(e: reqwest::Error) -> Self {
         TowError::new(&e.to_string())
