@@ -17,7 +17,7 @@ enum Commands {
     Versions { name: String },
 }
 
-pub async fn run_cli(app: App<'static>) {
+pub async fn run_cli(app: App) {
     let cli = Cli::parse();
 
     // You can check for the existence of subcommands, and if found use their
