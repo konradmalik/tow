@@ -5,10 +5,10 @@ use reqwest::header;
 use std::cmp::min;
 use std::fs::File;
 use std::io::Write;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use url::Url;
 
-pub async fn download_file(url: &Url, path: &Path) -> Result<(), TowError> {
+pub async fn download_file(url: &Url, path: &Path) -> Result<PathBuf, TowError> {
     if !path.is_dir() {
         return Err(TowError::new(&format!(
             "'{}' is not a directory",
@@ -46,7 +46,7 @@ pub async fn download_file(url: &Url, path: &Path) -> Result<(), TowError> {
     }
 
     pb.finish_with_message(format!("Downloaded {} to {}", url_str, full_path.display()));
-    Ok(())
+    Ok(full_path)
 }
 
 fn get_content_length(response: &reqwest::Response) -> Option<u64> {

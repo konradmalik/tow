@@ -3,6 +3,7 @@ mod cli;
 mod download;
 mod errors;
 mod logs;
+mod store;
 
 #[tokio::main]
 async fn main() {

@@ -20,22 +20,22 @@ impl App {
         App { binaries_dir }
     }
 
-    pub async fn install_binary(self, url: &str) -> Result<(), TowError> {
+    pub async fn install_binary(self, url: &str) -> Result<PathBuf, TowError> {
         match url::Url::parse(url) {
             Err(e) => {
                 error!("Error parsing url: {}", e);
                 Err(e.into())
             }
             Ok(url) => {
-                info!("downloading file: {}", url);
+                info!("downloading url: {}", url);
                 match download::download_file(&url, self.binaries_dir.as_path()).await {
                     Err(e) => {
                         error!("Error downloading url: {}", e);
                         Err(e)
                     }
-                    Ok(()) => {
-                        info!("downloaded!");
-                        Ok(())
+                    Ok(path) => {
+                        info!("downloaded to {}", path.display());
+                        Ok(path)
                     }
                 }
             }
@@ -52,7 +52,7 @@ fn default_bin_dir() -> PathBuf {
 
 #[cfg(target_os = "linux")]
 fn default_bin_dir() -> PathBuf {
-    dirs::executable_dir().expect("cannot get user's home dir")
+    dirs::executable_dir().expect("cannot get user's bin dir")
 }
 
 #[cfg(target_os = "windows")]
