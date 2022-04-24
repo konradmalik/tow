@@ -41,6 +41,12 @@ impl From<url::ParseError> for TowError {
     }
 }
 
+impl From<serde_json::Error> for TowError {
+    fn from(e: serde_json::Error) -> Self {
+        TowError::new(&e.to_string())
+    }
+}
+
 impl From<reqwest::Error> for TowError {
     fn from(e: reqwest::Error) -> Self {
         TowError::new(&e.to_string())

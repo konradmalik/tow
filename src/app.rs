@@ -1,23 +1,37 @@
-use crate::{download, errors::TowError};
+use crate::{download, errors::TowError, store};
 use log::{error, info};
 use std::env;
 use std::path::{Path, PathBuf};
 
+const TOW_BINARIES_DIR_ENV: &str = "TOW_BINARIES_DIR";
+const TOW_STORE_DIR_ENV: &str = "TOW_STORE_DIR";
+
 pub struct App {
-    binaries_dir: PathBuf,
+    store: store::TowStore,
 }
 
 impl App {
-    pub fn new_from_env() -> Self {
-        let binaries_dir = env::var("TOW_BINARIES_DIR").map_or_else(
+    pub fn new_from_env() -> Result<Self, TowError> {
+        let binaries_dir = env::var(TOW_BINARIES_DIR_ENV).map_or_else(
             |_| default_bin_dir(),
             |x| Path::new(x.as_str()).to_path_buf(),
         );
-        Self::new(binaries_dir)
+        let store_dir = env::var(TOW_STORE_DIR_ENV).map_or_else(
+            // TODO
+            |_| default_bin_dir(),
+            |x| Path::new(x.as_str()).to_path_buf(),
+        );
+        Self::new_from_dirs(binaries_dir, store_dir)
     }
 
-    pub fn new(binaries_dir: PathBuf) -> Self {
-        App { binaries_dir }
+    pub fn new_from_dirs(binaries_dir: PathBuf, store_dir: PathBuf) -> Result<Self, TowError> {
+        match store::TowStore::load_or_create(binaries_dir.as_path(), store_dir.as_path()) {
+            Err(e) => {
+                error!("error while loading or creating TowStore: {}", e);
+                Err(e)
+            }
+            Ok(store) => Ok(Self { store }),
+        }
     }
 
     pub async fn install_binary(self, url: &str) -> Result<PathBuf, TowError> {
@@ -28,7 +42,7 @@ impl App {
             }
             Ok(url) => {
                 info!("downloading url: {}", url);
-                match download::download_file(&url, self.binaries_dir.as_path()).await {
+                match download::download_file(&url, self.store.get_binaries_dir()).await {
                     Err(e) => {
                         error!("Error downloading url: {}", e);
                         Err(e)
@@ -86,7 +100,7 @@ mod test {
         // this is gets deleted once it goes out of scope
         let temp_dir = tempfile::tempdir().unwrap();
         let temp_path = temp_dir.path();
-        let app = App::new(temp_path.to_path_buf());
+        let app = App::new_from_dirs(temp_path.to_path_buf(), temp_path.to_path_buf()).unwrap();
 
         tokio_test::block_on(app.install_binary(url.as_str())).unwrap();
         assert!(temp_path.join(filename).is_file());

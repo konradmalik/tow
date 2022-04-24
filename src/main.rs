@@ -9,6 +9,6 @@ mod store;
 async fn main() {
     logs::init(3);
 
-    let app = app::App::new_from_env();
+    let app = app::App::new_from_env().expect("cannot start the application");
     cli::run_cli(app).await
 }
