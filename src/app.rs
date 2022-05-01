@@ -1,3 +1,4 @@
+use crate::store::AddBinaryCmd;
 use crate::{download, errors::TowError, store};
 use log::{error, info};
 use std::env;
@@ -5,6 +6,7 @@ use std::path::{Path, PathBuf};
 
 const TOW_BINARIES_DIR_ENV: &str = "TOW_BINARIES_DIR";
 const TOW_STORE_DIR_ENV: &str = "TOW_STORE_DIR";
+const TOW_DATA_FOLDER_NAME: &str = "tow";
 
 pub struct App {
     store: store::TowStore,
@@ -17,8 +19,7 @@ impl App {
             |x| Path::new(x.as_str()).to_path_buf(),
         );
         let store_dir = env::var(TOW_STORE_DIR_ENV).map_or_else(
-            // TODO
-            |_| default_bin_dir(),
+            |_| default_data_dir().join(TOW_DATA_FOLDER_NAME),
             |x| Path::new(x.as_str()).to_path_buf(),
         );
         Self::new_from_dirs(binaries_dir, store_dir)
@@ -42,13 +43,20 @@ impl App {
             }
             Ok(url) => {
                 info!("downloading url: {}", url);
-                match download::download_file(&url, self.store.get_binaries_dir()).await {
+                match download::download_file(&url, env::temp_dir().as_path()).await {
                     Err(e) => {
                         error!("Error downloading url: {}", e);
                         Err(e)
                     }
                     Ok(path) => {
                         info!("downloaded to {}", path.display());
+                        // TODO
+                        match self.save() {
+                            Err(e) => {
+                                error!("Error saving store; removing installed files: {}", e);
+                                path.Err(e)
+                            }
+                        }
                         Ok(path)
                     }
                 }
@@ -64,13 +72,30 @@ fn default_bin_dir() -> PathBuf {
         .expect("cannot get user's home dir")
 }
 
+#[cfg(target_os = "macos")]
+fn default_data_dir() -> PathBuf {
+    dirs::home_dir()
+        .map(|x| x.join(".local").join("share"))
+        .expect("cannot get user's home dir")
+}
+
 #[cfg(target_os = "linux")]
 fn default_bin_dir() -> PathBuf {
     dirs::executable_dir().expect("cannot get user's bin dir")
 }
 
+#[cfg(target_os = "linux")]
+fn default_data_dir() -> PathBuf {
+    dirs::data_dir().expect("cannot get user's data dir")
+}
+
 #[cfg(target_os = "windows")]
 fn default_bin_dir() -> PathBuf {
+    panic!("no windows support yet, sorry!")
+}
+
+#[cfg(target_os = "windows")]
+fn default_data_dir() -> PathBuf {
     panic!("no windows support yet, sorry!")
 }
 
