@@ -79,14 +79,3 @@ impl Hashable for BinaryEntry {
         format!("{}-{}", self.name, self.version)
     }
 }
-
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    #[test]
-    fn test_test() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let temp_path = temp_dir.path();
-    }
-}

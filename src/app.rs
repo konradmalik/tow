@@ -1,4 +1,4 @@
-use crate::store::{AddBinaryCmd, BinaryEntry};
+use crate::store::{AddBinaryCmd, BinaryEntry, RemoveBinaryCmd};
 use crate::{download, errors::TowError, local_store, store};
 use log::{error, info};
 use std::env;
@@ -8,6 +8,8 @@ const TOW_BINARIES_DIR_ENV: &str = "TOW_BINARIES_DIR";
 const TOW_STORE_DIR_ENV: &str = "TOW_STORE_DIR";
 const TOW_DATA_FOLDER_NAME: &str = "tow";
 const DEFAULT_BINARY_VERSION: &str = "latest";
+
+// TODO tests for remove and list
 
 pub struct App<T: store::TowStore<'static>> {
     store: T,
@@ -78,6 +80,11 @@ where
                 }
             }
         }
+    }
+
+    pub fn remove(&mut self, name: String, version: String) -> Result<(), TowError> {
+        let rm = RemoveBinaryCmd::new(name, version);
+        self.store.remove_binary(rm)
     }
 
     pub fn list(&'static self) -> Vec<&'static BinaryEntry> {
