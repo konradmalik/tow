@@ -8,11 +8,11 @@ const TOW_BINARIES_DIR_ENV: &str = "TOW_BINARIES_DIR";
 const TOW_STORE_DIR_ENV: &str = "TOW_STORE_DIR";
 const TOW_DATA_FOLDER_NAME: &str = "tow";
 
-pub struct App {
-    store: store::TowStore,
+pub struct App<T: store::TowStore> {
+    store: T,
 }
 
-impl App {
+impl App<store::LocalTowStore> {
     pub fn new_from_env() -> Result<Self, TowError> {
         let binaries_dir = env::var(TOW_BINARIES_DIR_ENV).map_or_else(
             |_| default_bin_dir(),
@@ -26,16 +26,21 @@ impl App {
     }
 
     pub fn new_from_dirs(binaries_dir: PathBuf, store_dir: PathBuf) -> Result<Self, TowError> {
-        match store::TowStore::load_or_create(binaries_dir.as_path(), store_dir.as_path()) {
+        match store::LocalTowStore::load_or_create(binaries_dir.as_path(), store_dir.as_path()) {
             Err(e) => {
                 error!("error while loading or creating TowStore: {}", e);
                 Err(e)
             }
-            Ok(store) => Ok(Self { store }),
+            Ok(store) => Ok(App { store }),
         }
     }
+}
 
-    pub async fn install_binary(self, url: &str) -> Result<PathBuf, TowError> {
+impl<T> App<T>
+where
+    T: store::TowStore,
+{
+    pub async fn install_binary(&mut self, url: &str) -> Result<PathBuf, TowError> {
         match url::Url::parse(url) {
             Err(e) => {
                 error!("Error parsing url: {}", e);
@@ -51,12 +56,12 @@ impl App {
                     Ok(path) => {
                         info!("downloaded to {}", path.display());
                         // TODO
-                        match self.save() {
-                            Err(e) => {
-                                error!("Error saving store; removing installed files: {}", e);
-                                path.Err(e)
-                            }
-                        }
+                        self.store.add_binary(AddBinaryCmd::new(
+                            "name".to_string(),
+                            "version".to_string(),
+                            path.to_owned(),
+                            url.to_string(),
+                        ))?;
                         Ok(path)
                     }
                 }
@@ -125,7 +130,7 @@ mod test {
         // this is gets deleted once it goes out of scope
         let temp_dir = tempfile::tempdir().unwrap();
         let temp_path = temp_dir.path();
-        let app = App::new_from_dirs(temp_path.to_path_buf(), temp_path.to_path_buf()).unwrap();
+        let mut app = App::new_from_dirs(temp_path.to_path_buf(), temp_path.to_path_buf()).unwrap();
 
         tokio_test::block_on(app.install_binary(url.as_str())).unwrap();
         assert!(temp_path.join(filename).is_file());

@@ -1,4 +1,4 @@
-use crate::app::App;
+use crate::{app::App, store};
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
@@ -17,7 +17,7 @@ enum Commands {
     Versions { name: String },
 }
 
-pub async fn run_cli(app: App) {
+pub async fn run_cli<T: store::TowStore>(mut app: App<T>) {
     let cli = Cli::parse();
 
     // You can check for the existence of subcommands, and if found use their

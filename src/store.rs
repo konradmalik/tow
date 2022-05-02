@@ -1,4 +1,4 @@
-use log::{error, warn,info};
+use log::{error, info, warn};
 use std::collections::HashMap;
 use std::env;
 use std::fs::{copy, remove_file, rename, File};
@@ -10,8 +10,13 @@ use crate::errors::TowError;
 
 const STORE_FILENAME: &str = "towstore.json";
 
+pub trait TowStore {
+    fn add_binary(&mut self, add: AddBinaryCmd) -> Result<(), TowError>;
+    fn remove_binary(&mut self, rm: RemoveBinaryCmd) -> Result<(), TowError>;
+}
+
 #[derive(Serialize, Deserialize, Debug)]
-pub struct TowStore {
+pub struct LocalTowStore {
     binaries: HashMap<String, BinaryEntry>,
     system: String,
     architecture: String,
@@ -19,26 +24,10 @@ pub struct TowStore {
     store_dir: PathBuf,
 }
 
-// TODO decouple store and interface
-// TODO AddBinaryCmd etc. must have "new" and from_add_command etc for be
 // TODO write tests
 
-impl<'a> TowStore {
-    pub fn load_or_create(binaries_dir: &Path, store_dir: &Path) -> Result<Self, TowError> {
-        let store_path_buf = store_dir.join(STORE_FILENAME);
-        let store_path = store_path_buf.as_path();
-        if store_path.is_dir() {
-            let mut store = Self::load(store_path)?;
-            store.change_binaries_path_if_needed(binaries_dir);
-            return Ok(store);
-        }
-        Ok(Self::create(
-            binaries_dir.to_path_buf(),
-            store_dir.to_path_buf(),
-        ))
-    }
-
-    pub fn add_binary(&mut self, add: AddBinaryCmd) -> Result<(), TowError> {
+impl<'a> TowStore for LocalTowStore {
+    fn add_binary(&mut self, add: AddBinaryCmd) -> Result<(), TowError> {
         let be_hash = add.hash();
         if self.binaries.contains_key(be_hash.as_str()) {
             return Err(TowError::new(
@@ -47,23 +36,18 @@ impl<'a> TowStore {
         }
 
         // move binary to our store
-        let file_location = add.path;
+        let file_location = add.path.as_path();
         let file_name = file_location
             .file_name()
-            .map(|x| x.to_str())
-            .flatten()
+            .and_then(|x| x.to_str())
             .ok_or_else(|| TowError::new("cannot get filename from file_location"))?;
         let new_location = self.get_binaries_dir().join(file_name);
-        rename(file_location, new_location)?;
+        rename(file_location, new_location.as_path())?;
 
         // once moved we can add entry
-        let be = BinaryEntry {
-            name: add.name,
-            version: add.version,
-            path: new_location,
-            source: add.source,
-        };
-        self.binaries.insert(be_hash, be);
+        let mut be = BinaryEntry::from_add_cmd(add);
+        be.path = new_location;
+        self.binaries.insert(be_hash, be.clone());
 
         // save but if error then remove
         match self.save() {
@@ -82,7 +66,7 @@ impl<'a> TowStore {
         }
     }
 
-    pub fn remove_binary(&mut self, rm: RemoveBinaryCmd) -> Result<(), TowError> {
+    fn remove_binary(&mut self, rm: RemoveBinaryCmd) -> Result<(), TowError> {
         let hash = rm.hash();
 
         let be = self
@@ -90,8 +74,24 @@ impl<'a> TowStore {
             .get(hash.as_str())
             .ok_or_else(|| TowError::new(format!("{} is not in the store", hash).as_str()))?;
 
-        remove_file(be.path)?;
+        remove_file(be.path.as_path())?;
         Ok(())
+    }
+}
+
+impl<'a> LocalTowStore {
+    pub fn load_or_create(binaries_dir: &Path, store_dir: &Path) -> Result<Self, TowError> {
+        let store_path_buf = store_dir.join(STORE_FILENAME);
+        let store_path = store_path_buf.as_path();
+        if store_path.is_dir() {
+            let mut store = Self::load(store_path)?;
+            store.change_binaries_path_if_needed(binaries_dir);
+            return Ok(store);
+        }
+        Ok(Self::create(
+            binaries_dir.to_path_buf(),
+            store_dir.to_path_buf(),
+        ))
     }
 
     fn create(binaries_dir: PathBuf, store_dir: PathBuf) -> Self {
@@ -151,6 +151,17 @@ pub struct AddBinaryCmd {
     source: String,
 }
 
+impl AddBinaryCmd {
+    pub fn new(name: String, version: String, path: PathBuf, source: String) -> Self {
+        Self {
+            name,
+            version,
+            path,
+            source,
+        }
+    }
+}
+
 impl Hashable for AddBinaryCmd {
     fn hash(&self) -> String {
         format!("{}-{}", self.name, self.version)
@@ -162,18 +173,35 @@ pub struct RemoveBinaryCmd {
     version: String,
 }
 
+impl RemoveBinaryCmd {
+    pub fn new(name: String, version: String) -> Self {
+        Self { name, version }
+    }
+}
+
 impl Hashable for RemoveBinaryCmd {
     fn hash(&self) -> String {
         format!("{}-{}", self.name, self.version)
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 struct BinaryEntry {
     name: String,
     version: String,
     path: PathBuf,
     source: String,
+}
+
+impl BinaryEntry {
+    fn from_add_cmd(add: AddBinaryCmd) -> Self {
+        Self {
+            name: add.name,
+            version: add.version,
+            path: add.path,
+            source: add.source,
+        }
+    }
 }
 
 impl Hashable for BinaryEntry {
