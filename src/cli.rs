@@ -17,14 +17,14 @@ enum Commands {
     Versions { name: String },
 }
 
-pub async fn run_cli<T: store::TowStore>(mut app: App<T>) {
+pub async fn run_cli<T: store::TowStore<'static>>(mut app: App<T>) {
     let cli = Cli::parse();
 
     // You can check for the existence of subcommands, and if found use their
     // matches just as you would the top level app
     match &cli.command {
         Commands::Install { url } => {
-            app.install_binary(url)
+            app.install(url, None, None)
                 .await
                 .expect("could not install binary; see previous errors");
         }

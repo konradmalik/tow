@@ -2,6 +2,7 @@ mod app;
 mod cli;
 mod download;
 mod errors;
+mod local_store;
 mod logs;
 mod store;
 
