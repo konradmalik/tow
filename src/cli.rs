@@ -13,11 +13,10 @@ struct Cli {
 enum Commands {
     Install { url: String },
     List,
-    Uninstall { name: String },
-    Versions { name: String },
+    Uninstall { name: String, version: String },
 }
 
-pub async fn run_cli<T: store::TowStore<'static>>(mut app: App<T>) {
+pub async fn run_cli<T: store::TowStore>(mut app: App<T>) {
     let cli = Cli::parse();
 
     // You can check for the existence of subcommands, and if found use their
@@ -29,13 +28,13 @@ pub async fn run_cli<T: store::TowStore<'static>>(mut app: App<T>) {
                 .expect("could not install binary; see previous errors");
         }
         Commands::List => {
-            println!("'list' was used")
+            for be in app.list() {
+                println!("{}", be)
+            }
         }
-        Commands::Uninstall { name } => {
-            println!("'uninstall' was used, name is: {:?}", name)
-        }
-        Commands::Versions { name } => {
-            println!("'versions' was used, name is: {:?}", name)
+        Commands::Uninstall { name, version } => {
+            app.remove(name.to_string(), version.to_string())
+                .expect("could not uninstall binary; see previous errors");
         }
     }
 }

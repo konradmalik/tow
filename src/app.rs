@@ -11,7 +11,7 @@ const DEFAULT_BINARY_VERSION: &str = "latest";
 
 // TODO tests for remove and list
 
-pub struct App<T: store::TowStore<'static>> {
+pub struct App<T: store::TowStore> {
     store: T,
 }
 
@@ -44,7 +44,7 @@ impl App<local_store::LocalTowStore> {
 
 impl<T> App<T>
 where
-    T: store::TowStore<'static>,
+    T: store::TowStore,
 {
     pub async fn install(
         &mut self,
@@ -87,7 +87,7 @@ where
         self.store.remove_binary(rm)
     }
 
-    pub fn list(&'static self) -> Vec<&'static BinaryEntry> {
+    pub fn list(&self) -> Vec<&BinaryEntry> {
         self.store.list_binaries()
     }
 }

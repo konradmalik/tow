@@ -1,13 +1,13 @@
-use std::path::PathBuf;
+use std::{fmt::Display, path::PathBuf};
 
 use serde::{Deserialize, Serialize};
 
 use crate::errors::TowError;
 
-pub trait TowStore<'a> {
+pub trait TowStore {
     fn add_binary(&mut self, add: AddBinaryCmd) -> Result<(), TowError>;
     fn remove_binary(&mut self, rm: RemoveBinaryCmd) -> Result<(), TowError>;
-    fn list_binaries(&'a self) -> Vec<&'a BinaryEntry>;
+    fn list_binaries(&self) -> Vec<&BinaryEntry>;
 }
 
 pub trait Hashable {
@@ -77,5 +77,17 @@ impl BinaryEntry {
 impl Hashable for BinaryEntry {
     fn hash(&self) -> String {
         format!("{}-{}", self.name, self.version)
+    }
+}
+
+impl Display for BinaryEntry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_fmt(format_args!(
+            "{} {} {} {}",
+            self.name,
+            self.version,
+            self.path.display(),
+            self.source
+        ))
     }
 }
