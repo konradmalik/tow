@@ -4,6 +4,7 @@ mod download;
 mod errors;
 mod local_store;
 mod logs;
+mod registry;
 mod store;
 
 #[tokio::main]

@@ -9,8 +9,6 @@ const TOW_STORE_DIR_ENV: &str = "TOW_STORE_DIR";
 const TOW_DATA_FOLDER_NAME: &str = "tow";
 const DEFAULT_BINARY_VERSION: &str = "latest";
 
-// TODO tests for remove and list
-
 pub struct App<T: store::TowStore> {
     store: T,
 }
@@ -37,7 +35,7 @@ impl App<local_store::LocalTowStore> {
                 error!("error while loading or creating TowStore: {}", e);
                 Err(e)
             }
-            Ok(store) => Ok(App { store }),
+            Ok(store) => Ok(App::new(store)),
         }
     }
 }
@@ -46,6 +44,10 @@ impl<T> App<T>
 where
     T: store::TowStore,
 {
+    pub fn new(store: T) -> Self {
+        App { store }
+    }
+
     pub async fn install(
         &mut self,
         url: &str,
@@ -133,10 +135,10 @@ mod test {
 
     #[test]
     fn test_install() {
-        let filename = "hello.txt";
         let endpoint = "/helloworld";
-        let root_url = &mockito::server_url();
+        let filename = "hello.txt";
 
+        // prepare mockito
         let _m = mock("GET", endpoint)
             .with_status(200)
             .with_header("content-type", "text/plain")
@@ -147,14 +149,82 @@ mod test {
             .with_body("Hello world!")
             .create();
 
+        let root_url = &mockito::server_url();
         let url = format!("{}{}", root_url, endpoint);
 
         // this is gets deleted once it goes out of scope
         let temp_dir = tempfile::tempdir().unwrap();
         let temp_path = temp_dir.path();
         let mut app = App::new_from_dirs(temp_path.to_path_buf(), temp_path.to_path_buf()).unwrap();
+        assert!(!temp_path.join(filename).is_file());
 
         tokio_test::block_on(app.install(url.as_str(), None, None)).unwrap();
         assert!(temp_path.join(filename).is_file());
+    }
+
+    #[test]
+    fn test_list() {
+        let app = App::new(DummyStore::new_with_count(0));
+        assert_eq!(app.list().len(), 0);
+
+        let app = App::new(DummyStore::new_with_count(1));
+        assert_eq!(app.list().len(), 1);
+    }
+
+    #[test]
+    fn test_remove() {
+        let mut app = App::new(DummyStore::new_with_count(1));
+        assert!(app
+            .remove("name".to_string(), "version".to_string())
+            .is_ok());
+        assert!(app
+            .remove("name".to_string(), "version".to_string())
+            .is_err());
+    }
+
+    struct DummyStore {
+        bes: Vec<BinaryEntry>,
+    }
+
+    impl store::TowStore for DummyStore {
+        fn add_binary(&mut self, _: AddBinaryCmd) -> Result<(), TowError> {
+            self.bes.push(Self::dummy_be());
+            Ok(())
+        }
+
+        fn list_binaries(&self) -> Vec<&BinaryEntry> {
+            let mut v = Vec::new();
+            for be in &self.bes {
+                v.push(be);
+            }
+            v
+        }
+
+        fn remove_binary(&mut self, _: RemoveBinaryCmd) -> Result<(), TowError> {
+            if self.bes.len() == 0 {
+                return Err(TowError::new("no more binaries"));
+            }
+            self.bes.pop();
+            Ok(())
+        }
+    }
+
+    impl DummyStore {
+        fn new_with_count(i: i32) -> Self {
+            let mut v = Vec::new();
+            for _ in 0..i {
+                v.push(Self::dummy_be());
+            }
+            DummyStore { bes: v }
+        }
+
+        fn dummy_be() -> BinaryEntry {
+            BinaryEntry {
+                name: "name".to_string(),
+                version: "version".to_string(),
+                path: PathBuf::new(),
+                source: "source".to_string(),
+            }
+        }
     }
 }
